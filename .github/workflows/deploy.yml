@@ -31,5 +31,5 @@ jobs:
         if: github.ref == 'refs/heads/main'
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist  # The folder the action should deploy
+          publish_dir: ./docs  # The folder the action should deploy
           force_orphan: true 
