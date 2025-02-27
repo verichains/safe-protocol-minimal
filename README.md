@@ -1,84 +1,69 @@
 # Safe Protocol Minimal
 
-A web application for safely interacting with smart contracts, allowing users to verify and execute contract calls.
+A minimal interface for interacting with Safe smart contract wallets without requiring the official Safe UI. This lightweight application provides essential functionality for Safe Protocol interactions using a simple, straightforward interface.
+
+## Purpose
+
+This project serves as a minimal alternative to the official Safe UI, allowing users to:
+- Interact with Safe smart contract wallets
+- Execute basic Safe Protocol operations
+- Manage Safe transactions with a simplified interface
 
 ## Tech Stack
 
-- Svelte (75.1%)
-- TypeScript (23.0%)
+- Svelte
+- TypeScript
 - Vite
-- HTML & CSS
+- Safe Protocol Kit
+- Ethers.js
 
-## Development
+## Prerequisites
 
-### Prerequisites
+- Node.js (v16 or higher)
+- npm or yarn
 
-- Node.js 20.x or later
-- npm (Node Package Manager)
-
-### Local Development
+## Local Development Setup
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/verichains/safe-protocol-minimal.git
+git clone <repository-url>
 cd safe-protocol-minimal
 ```
 
 2. Install dependencies:
 ```bash
-npm ci
+npm install
+# or
+yarn install
 ```
 
 3. Start the development server:
 ```bash
 npm run dev
+# or
+yarn dev
 ```
 
-The site will be available at `http://localhost:5173`
+4. Open your browser and navigate to `http://localhost:5173`
 
-### Building
+## Build for Production
 
-To build the site for production:
+To create a production build:
 
 ```bash
 npm run build
+# or
+yarn build
 ```
 
-This will generate a `dist` directory with the built files.
+The built files will be in the `dist` directory.
 
-## Deployment
+## Preview Production Build
 
-The project is configured to automatically deploy to GitHub Pages when changes are pushed to the `main` branch.
+To preview the production build locally:
 
-### Setup GitHub Pages
-
-1. Go to your repository's Settings
-2. Navigate to "Pages" in the sidebar
-3. Under "Build and deployment":
-   - Select "GitHub Actions" as the source
-4. The site will be automatically deployed on each push to the `main` branch
-
-### Manual Deployment
-
-If you need to deploy manually:
-
-1. Build the project:
 ```bash
-npm run build
+npm run preview
+# or
+yarn preview
 ```
-
-2. Push your changes to the main branch:
-```bash
-git add .
-git commit -m "Your commit message"
-git push origin main
-```
-
-The GitHub Action will automatically build and deploy your site to GitHub Pages.
-
-## Project Structure
-
-- `/src` - Source code (Svelte & TypeScript files)
-- `/public` - Static assets
-- `/dist` - Built files (generated)
-- `/.github/workflows` - GitHub Actions workflow configuration

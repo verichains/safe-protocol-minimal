@@ -1,7 +1,6 @@
 import { ethers } from 'ethers'
 import Safe, { EthersAdapter } from '@safe-global/protocol-kit'
 import type { SafeTransactionDataPartial } from '@safe-global/safe-core-sdk-types'
-import SafeApiKit from '@safe-global/api-kit'
 
 export interface SerializedSafeTransaction {
   to: string
@@ -17,14 +16,12 @@ export interface SerializedSafeTransaction {
 export class SafeService {
   private signer: ethers.Signer
   private protocolKit: Safe
-  private apiKit: SafeApiKit
   private safeAddress: string = ''
 
   constructor() {
     // Initialize empty - will be set in connect()
     this.signer = {} as ethers.Signer
     this.protocolKit = {} as Safe
-    this.apiKit = {} as SafeApiKit
   }
 
   async connect(safeAddress: string) {
@@ -52,10 +49,6 @@ export class SafeService {
       ethAdapter,
       safeAddress
     })
-
-    // Initialize API Kit with the current chain ID
-    const chainId = (await provider.getNetwork()).chainId
-    this.apiKit = new SafeApiKit({ chainId })
   }
 
   async createTransaction(txData: SafeTransactionDataPartial) {
@@ -165,10 +158,6 @@ export class SafeService {
       console.error('Error executing transaction:', error)
       throw error
     }
-  }
-
-  async getTransaction(safeTxHash: string) {
-    return await this.apiKit.getTransaction(safeTxHash)
   }
 
   async getAddress(): Promise<string> {
