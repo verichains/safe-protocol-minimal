@@ -1,5 +1,7 @@
 # Safe Protocol Minimal
 
+⚠️ ⚠️ Use this tool at your own risk and always verify what you are signing!!!
+
 A minimal interface for interacting with Safe smart contract wallets without requiring the official Safe UI. This lightweight application provides essential functionality for Safe Protocol interactions using a simple, straightforward interface.
 
 ## Purpose
