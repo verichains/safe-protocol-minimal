@@ -134,8 +134,8 @@
         throw new Error('Invalid recipient address')
       }
 
-      if (!weiValue || weiValue === '0') {
-        throw new Error('Please enter a valid amount')
+      if (!ethers.BigNumber.from(weiValue).gte(0)) {
+        throw new Error('Value must be a non-negative amount')
       }
 
       status = 'Creating transaction...'
