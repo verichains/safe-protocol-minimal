@@ -2,6 +2,7 @@
   import { ethers } from 'ethers'
   import { SafeService, type SerializedSafeTransaction } from './lib/SafeService'
   import { onMount } from 'svelte'
+  import CreateSafe from './lib/CreateSafe.svelte'
   
   let safeService = new SafeService()
   let status = ''
@@ -19,7 +20,7 @@
   let serializedTxStr = ''
   let currentTx: SerializedSafeTransaction | null = null
 
-  let activeWorkflow: 'create' | 'sign' = 'create'
+  let activeWorkflow: 'create' | 'sign' | 'new' = 'new'
 
   let canSign = false
 
@@ -223,228 +224,261 @@
 <main>
   <h1>Safe Protocol Minimal</h1>
   
-  <div class="guide-steps">
-    <div class="step">
-      <span class="step-number">1</span>
-      <div class="step-content">
-        <h3>Connect to Safe</h3>
-        <p>Enter your Safe address and connect your wallet to get started.</p>
-      </div>
-    </div>
+  <div class="workflow-selector">
+    <button 
+      class="tab-button {activeWorkflow === 'new' ? 'active' : ''}"
+      on:click={() => activeWorkflow = 'new'}
+    >
+      Create New Safe
+    </button>
+    <button 
+      class="tab-button {activeWorkflow === 'create' ? 'active' : ''}"
+      on:click={() => activeWorkflow = 'create'}
+    >
+      Create Transaction
+    </button>
+    <button 
+      class="tab-button {activeWorkflow === 'sign' ? 'active' : ''}"
+      on:click={() => activeWorkflow = 'sign'}
+    >
+      Sign Transaction
+    </button>
   </div>
 
-  <div class="form-group">
-    <label for="safe-address">
-      Safe Address:
-      <span class="tooltip" data-tooltip="The address of your Safe multi-signature wallet">ⓘ</span>
-    </label>
-    <div class="input-group">
-      <input 
-        id="safe-address"
-        type="text" 
-        bind:value={safeAddress} 
-        placeholder="Enter Safe address (0x...)"
-      />
-      <button class="primary-button" on:click={handleConnect}>Connect Wallet</button>
-    </div>
-  </div>
-
-  {#if connectedAddress}
-    <div class="workflow-selector">
-      <button 
-        class="tab-button {activeWorkflow === 'create' ? 'active' : ''}"
-        on:click={() => activeWorkflow = 'create'}
-      >
-        Create New Transaction
-      </button>
-      <button 
-        class="tab-button {activeWorkflow === 'sign' ? 'active' : ''}"
-        on:click={() => activeWorkflow = 'sign'}
-      >
-        Sign Existing Transaction
-      </button>
-    </div>
-
-    {#if activeWorkflow === 'create'}
-      <div class="guide-steps">
-        <div class="step">
-          <span class="step-number">2</span>
-          <div class="step-content">
-            <h3>Create Transaction</h3>
-            <p>Fill in the transaction details to create a new transaction that requires signatures.</p>
-          </div>
+  {#if activeWorkflow === 'new'}
+    <CreateSafe 
+      {safeService} 
+      on:safecreated={(e) => {
+        safeAddress = e.detail.safeAddress
+        activeWorkflow = 'create'
+        handleConnect()
+      }}
+    />
+  {:else}
+    <div class="guide-steps">
+      <div class="step">
+        <span class="step-number">1</span>
+        <div class="step-content">
+          <h3>Connect to Safe</h3>
+          <p>Enter your Safe address and connect your wallet to get started.</p>
         </div>
       </div>
+    </div>
+
+    <div class="form-group">
+      <label for="safe-address">
+        Safe Address:
+        <span class="tooltip" data-tooltip="The address of your Safe multi-signature wallet">ⓘ</span>
+      </label>
+      <div class="input-group">
+        <input 
+          id="safe-address"
+          type="text" 
+          bind:value={safeAddress} 
+          placeholder="Enter Safe address (0x...)"
+        />
+        <button class="primary-button" on:click={handleConnect}>Connect Wallet</button>
+      </div>
+    </div>
+
+    {#if connectedAddress}
+      {#if activeWorkflow === 'create'}
+        <div class="guide-steps">
+          <div class="step">
+            <span class="step-number">2</span>
+            <div class="step-content">
+              <h3>Create Transaction</h3>
+              <p>Fill in the transaction details to create a new transaction that requires signatures.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>Create Transaction</h2>
+          <div class="form-group">
+            <label for="recipient-address">
+              To:
+              <span class="tooltip" data-tooltip="The Ethereum address that will receive this transaction">ⓘ</span>
+            </label>
+            <input 
+              id="recipient-address"
+              type="text" 
+              bind:value={recipientAddress} 
+              placeholder="Recipient address (0x...)"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="transaction-value">
+              Value (ETH):
+              <span class="tooltip" data-tooltip="Amount of ETH to send">ⓘ</span>
+            </label>
+            <input 
+              id="transaction-value"
+              type="number" 
+              value={ethValue}
+              on:input={handleEthValueChange}
+              min="0"
+              step="0.000000000000000001"
+              placeholder="0.0"
+            />
+            <span class="helper-text">Wei: {weiValue}</span>
+          </div>
+
+          <div class="form-group">
+            <label for="transaction-payload">
+              Data:
+              <span class="tooltip" data-tooltip="Optional: Hexadecimal data for contract interactions">ⓘ</span>
+            </label>
+            <input 
+              id="transaction-payload"
+              type="text" 
+              bind:value={transactionPayload} 
+              placeholder="0x... (optional)"
+            />
+          </div>
+
+          <button class="primary-button" on:click={handleCreateTransaction}>Create Transaction</button>
+        </div>
+
+        <div class="guide-steps">
+          <div class="step">
+            <span class="step-number">3</span>
+            <div class="step-content">
+              <h3>Share Transaction</h3>
+              <p>Share the transaction data with other signers for their signatures.</p>
+            </div>
+          </div>
+        </div>
+      {:else}
+        <div class="guide-steps">
+          <div class="step">
+            <span class="step-number">2</span>
+            <div class="step-content">
+              <h3>Sign Transaction</h3>
+              <p>Paste the transaction data shared with you to sign it.</p>
+            </div>
+          </div>
+        </div>
+      {/if}
 
       <div class="section">
-        <h2>Create Transaction</h2>
+        <h2>Sign & Execute</h2>
         <div class="form-group">
-          <label for="recipient-address">
-            To:
-            <span class="tooltip" data-tooltip="The Ethereum address that will receive this transaction">ⓘ</span>
+          <label for="transaction-data">
+            Transaction Data
+            {#if currentTx && getSignatureCount(currentTx) > 0}
+              <span class="label-badge">
+                {getSignatureCount(currentTx)} signature{getSignatureCount(currentTx) > 1 ? 's' : ''}
+              </span>
+            {/if}
+            <span class="tooltip" data-tooltip="Paste transaction data here to sign, or copy to share with other signers">ⓘ</span>
           </label>
-          <input 
-            id="recipient-address"
-            type="text" 
-            bind:value={recipientAddress} 
-            placeholder="Recipient address (0x...)"
-          />
-        </div>
-
-        <div class="form-group">
-          <label for="transaction-value">
-            Value (ETH):
-            <span class="tooltip" data-tooltip="Amount of ETH to send">ⓘ</span>
-          </label>
-          <input 
-            id="transaction-value"
-            type="number" 
-            value={ethValue}
-            on:input={handleEthValueChange}
-            min="0"
-            step="0.000000000000000001"
-            placeholder="0.0"
-          />
-          <span class="helper-text">Wei: {weiValue}</span>
-        </div>
-
-        <div class="form-group">
-          <label for="transaction-payload">
-            Data:
-            <span class="tooltip" data-tooltip="Optional: Hexadecimal data for contract interactions">ⓘ</span>
-          </label>
-          <input 
-            id="transaction-payload"
-            type="text" 
-            bind:value={transactionPayload} 
-            placeholder="0x... (optional)"
-          />
-        </div>
-
-        <button class="primary-button" on:click={handleCreateTransaction}>Create Transaction</button>
-      </div>
-
-      <div class="guide-steps">
-        <div class="step">
-          <span class="step-number">3</span>
-          <div class="step-content">
-            <h3>Share Transaction</h3>
-            <p>Share the transaction data with other signers for their signatures.</p>
+          <div class="textarea-container">
+            <textarea
+              id="transaction-data"
+              bind:value={serializedTxStr}
+              on:input={handleTransactionDataChange}
+              placeholder={activeWorkflow === 'create' 
+                ? "Your transaction data will appear here after creation" 
+                : "Paste transaction data here to sign it"}
+              rows="8"
+              class="monospace"
+            />
+            {#if serializedTxStr}
+              <div class="button-container">
+                <button class="icon-button" on:click={copyToClipboard}>
+                  Copy
+                </button>
+              </div>
+            {/if}
           </div>
+          {#if currentTx && getSignatureCount(currentTx) > 0}
+            <span class="helper-text">👆 Copy this data to share with other signers</span>
+          {/if}
         </div>
-      </div>
-    {:else}
-      <div class="guide-steps">
-        <div class="step">
-          <span class="step-number">2</span>
-          <div class="step-content">
-            <h3>Sign Transaction</h3>
-            <p>Paste the transaction data shared with you to sign it.</p>
+
+        <div class="button-group">
+          <button 
+            on:click={handleAddSignature} 
+            class="secondary-button"
+            disabled={!currentTx || !canSign}
+          >
+            <span class="button-icon">✍️</span> Sign
+          </button>
+          <button 
+            on:click={handleExecuteTransaction} 
+            class="execute-button"
+            disabled={!currentTx}
+          >
+            <span class="button-icon">🚀</span> Execute
+          </button>
+        </div>
+
+        {#if currentTx}
+          <div class="transaction-info">
+            <h3>Current Transaction</h3>
+            <div class="info-grid">
+              <div class="info-row">
+                <span class="info-label">To:</span>
+                <code class="info-value">{currentTx.to}</code>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Value:</span>
+                <code class="info-value">{ethers.utils.formatEther(currentTx.value)} ETH</code>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Data:</span>
+                <code class="info-value">{currentTx.data}</code>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Signatures ({currentTx.signatures.length}):</span>
+                <div class="signatures-list">
+                  {#each currentTx.signatures as signature}
+                    <div class="signature-item">
+                      <code class={isCurrentSigner(signature.signer) ? 'current-signer' : ''}>
+                        {signature.signer}
+                        {#if isCurrentSigner(signature.signer)}
+                          <span class="signature-badge">Your signature</span>
+                        {/if}
+                      </code>
+                    </div>
+                  {/each}
+                </div>
+              </div>
+            </div>
+            {#if !canSign && currentTx.signatures.some(sig => isCurrentSigner(sig.signer))}
+              <div class="signature-status">
+                <span class="status-icon">✓</span>
+                You have already signed this transaction
+              </div>
+            {/if}
           </div>
-        </div>
+        {/if}
       </div>
     {/if}
 
-    <div class="section">
-      <h2>Sign & Execute</h2>
-      <div class="form-group">
-        <label for="transaction-data">
-          Transaction Data
-          {#if currentTx && getSignatureCount(currentTx) > 0}
-            <span class="label-badge">
-              {getSignatureCount(currentTx)} signature{getSignatureCount(currentTx) > 1 ? 's' : ''}
-            </span>
+    {#if status || connectedAddress}
+      <div class="status-bar">
+        {#if status}
+          <div class="status-message">
+            {status}
+          </div>
+          {#if status.includes('Transaction created!')}
+            <div class="contract-address">
+              <span class="address-label">Contract:</span>
+              <code class="address-value">{currentTx?.to}</code>
+            </div>
           {/if}
-          <span class="tooltip" data-tooltip="Paste transaction data here to sign, or copy to share with other signers">ⓘ</span>
-        </label>
-        <div class="textarea-container">
-          <textarea
-            id="transaction-data"
-            bind:value={serializedTxStr}
-            on:input={handleTransactionDataChange}
-            placeholder={activeWorkflow === 'create' 
-              ? "Your transaction data will appear here after creation" 
-              : "Paste transaction data here to sign it"}
-            rows="8"
-          />
-          {#if serializedTxStr}
-            <button class="icon-button" on:click={copyToClipboard}>
-              Copy
-            </button>
-          {/if}
-        </div>
-        {#if currentTx && getSignatureCount(currentTx) > 0}
-          <span class="helper-text">👆 Copy this data to share with other signers</span>
+        {/if}
+        {#if connectedAddress}
+          <div class="connected-address">
+            <span class="address-label">Connected:</span>
+            <code class="address-value">{connectedAddress}</code>
+          </div>
         {/if}
       </div>
-
-      <div class="button-group">
-        <button 
-          on:click={handleAddSignature} 
-          class="secondary-button"
-          disabled={!currentTx || !canSign}
-        >
-          <span class="button-icon">✍️</span> Sign
-        </button>
-        <button 
-          on:click={handleExecuteTransaction} 
-          class="execute-button"
-          disabled={!currentTx}
-        >
-          <span class="button-icon">🚀</span> Execute
-        </button>
-      </div>
-
-      {#if currentTx}
-        <div class="transaction-info">
-          <h3>Current Transaction</h3>
-          <div class="info-grid">
-            <div>To: <code>{currentTx.to}</code></div>
-            <div>Value: <code>{ethers.utils.formatEther(currentTx.value)} ETH</code></div>
-            <div>Data: <code>{currentTx.data}</code></div>
-            <div>
-              Signatures ({currentTx.signatures.length}):
-              <ul>
-                {#each currentTx.signatures as signature}
-                  <li>
-                    <code class={isCurrentSigner(signature.signer) ? 'current-signer' : ''}>
-                      {signature.signer}
-                      {#if isCurrentSigner(signature.signer)}
-                        <span class="signature-badge">Your signature</span>
-                      {/if}
-                    </code>
-                  </li>
-                {/each}
-              </ul>
-            </div>
-          </div>
-          {#if !canSign && currentTx.signatures.some(sig => isCurrentSigner(sig.signer))}
-            <div class="signature-status">
-              <span class="status-icon">✓</span>
-              You have already signed this transaction
-            </div>
-          {/if}
-        </div>
-      {/if}
-    </div>
-
-    <div class="status-bar">
-      {#if connectedAddress}
-        <div class="status-group">
-          <span class="status-label">Connected:</span>
-          <span class="address">{connectedAddress}</span>
-        </div>
-      {/if}
-      {#if status}
-        <span class="status">{status}</span>
-      {/if}
-    </div>
-  {/if}
-
-  {#if !connectedAddress}
-    <div class="status-bar">
-      <span class="status">{status}</span>
-    </div>
+    {/if}
   {/if}
 </main>
 
@@ -671,95 +705,159 @@
 
   .textarea-container {
     position: relative;
+    margin-bottom: 1rem;
   }
 
-  .label-badge {
+  textarea.monospace {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.875rem;
+    line-height: 1.4;
+    padding: 1rem;
+    width: 100%;
+    min-height: 200px;
+    resize: vertical;
+    background: #fafafa;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+  }
+
+  .button-container {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    z-index: 1;
+  }
+
+  .info-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem;
+    background: #ffffff;
+    border-radius: 4px;
+  }
+
+  .info-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .info-label {
+    font-weight: 500;
+    color: #666;
+  }
+
+  .info-value {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.875rem;
+    padding: 0.5rem;
+    background: #f5f5f5;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    word-break: break-all;
+    line-height: 1.4;
+  }
+
+  .signatures-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .signature-item {
+    display: flex;
+    align-items: center;
+  }
+
+  .signature-item code {
+    flex: 1;
+    padding: 0.5rem;
+    background: #f5f5f5;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .current-signer {
+    border-color: #4caf50 !important;
+    background: #e8f5e9 !important;
+  }
+
+  .signature-badge {
     display: inline-block;
-    padding: 0.25rem 0.5rem;
     margin-left: 0.5rem;
+    padding: 0.125rem 0.375rem;
     font-size: 0.75rem;
     color: #ffffff;
     background: #4caf50;
     border-radius: 1rem;
+    vertical-align: middle;
   }
 
-  .transaction-info {
-    margin-top: 1.5rem;
-    padding: 1rem;
-    background: #f5f5f5;
-    border-radius: 6px;
-  }
-
-  .info-grid {
-    display: grid;
-    gap: 0.75rem;
-  }
-
-  .info-grid code {
-    display: inline-block;
-    padding: 0.125rem 0.25rem;
-    font-size: 0.875rem;
-    background: #e0e0e0;
+  .signature-status {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: #e8f5e9;
+    border: 1px solid #4caf50;
     border-radius: 4px;
-    word-break: break-all;
+    color: #2e7d32;
+    font-weight: 500;
+  }
+
+  .status-icon {
+    font-size: 1.25rem;
+    line-height: 1;
   }
 
   .status-bar {
     margin-top: 1.5rem;
     padding: 1rem;
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    flex-direction: column;
+    gap: 0.75rem;
     background: #f5f5f5;
     border-radius: 6px;
-    font-size: 0.875rem;
-    gap: 1rem;
   }
 
-  .status-group {
+  .status-message {
+    font-size: 0.9375rem;
+    color: #2e7d32;
+    padding: 0.5rem;
+    background: #e8f5e9;
+    border-radius: 4px;
+    border: 1px solid #4caf50;
+  }
+
+  .contract-address, .connected-address {
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    padding: 0.5rem;
+    background: #fff;
+    border-radius: 4px;
+    border: 1px solid #e0e0e0;
   }
 
-  .status-label {
-    color: #666666;
+  .address-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #666;
+    white-space: nowrap;
   }
 
-  .status {
-    color: #666666;
-    text-align: right;
-    flex-shrink: 0;
-  }
-
-  .address {
+  .address-value {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.875rem;
     color: #2196f3;
-    font-family: monospace;
     word-break: break-all;
-  }
-
-  ul {
-    margin: 0.5rem 0;
-    padding-left: 1.25rem;
-  }
-
-  li {
-    margin: 0.25rem 0;
-  }
-
-  @media (max-width: 600px) {
-    .input-group {
-      flex-direction: column;
-    }
-    
-    .button-group {
-      flex-direction: column;
-    }
-    
-    button {
-      width: 100%;
-      justify-content: center;
-    }
   }
 
   .workflow-selector {
@@ -797,37 +895,30 @@
     pointer-events: none;
   }
 
-  .current-signer {
-    border: 1px solid #4caf50 !important;
-    background: #e8f5e9 !important;
-  }
+  @media (max-width: 600px) {
+    .input-group {
+      flex-direction: column;
+    }
+    
+    .button-group {
+      flex-direction: column;
+    }
+    
+    button {
+      width: 100%;
+      justify-content: center;
+    }
 
-  .signature-badge {
-    display: inline-block;
-    margin-left: 0.5rem;
-    padding: 0.125rem 0.375rem;
-    font-size: 0.75rem;
-    color: #ffffff;
-    background: #4caf50;
-    border-radius: 1rem;
-    vertical-align: middle;
-  }
+    .contract-address, .connected-address {
+      flex-direction: column;
+      align-items: flex-start;
+    }
 
-  .signature-status {
-    margin-top: 1rem;
-    padding: 0.75rem;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    background: #e8f5e9;
-    border: 1px solid #4caf50;
-    border-radius: 4px;
-    color: #2e7d32;
-    font-weight: 500;
-  }
-
-  .status-icon {
-    font-size: 1.25rem;
-    line-height: 1;
+    .address-value {
+      width: 100%;
+      padding: 0.5rem;
+      background: #f5f5f5;
+      border-radius: 4px;
+    }
   }
 </style> 

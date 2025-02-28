@@ -1,5 +1,5 @@
 import { ethers } from 'ethers'
-import Safe, { EthersAdapter } from '@safe-global/protocol-kit'
+import Safe, { EthersAdapter, type SafeAccountConfig, SafeFactory } from '@safe-global/protocol-kit'
 import type { SafeTransactionDataPartial } from '@safe-global/safe-core-sdk-types'
 
 export interface SerializedSafeTransaction {
@@ -17,6 +17,7 @@ export class SafeService {
   private signer: ethers.Signer
   private protocolKit: Safe
   private safeAddress: string = ''
+  private ethAdapter: EthersAdapter | null = null
 
   constructor() {
     // Initialize empty - will be set in connect()
@@ -24,12 +25,10 @@ export class SafeService {
     this.protocolKit = {} as Safe
   }
 
-  async connect(safeAddress: string) {
+  async connectWallet() {
     if (!window.ethereum) {
       throw new Error('No web3 provider found. Please install MetaMask.')
     }
-
-    this.safeAddress = safeAddress
 
     // Setup provider and signer using browser wallet
     const provider = new ethers.providers.Web3Provider(window.ethereum)
@@ -39,16 +38,42 @@ export class SafeService {
     this.signer = provider.getSigner()
 
     // Create EthAdapter
-    const ethAdapter = new EthersAdapter({
+    this.ethAdapter = new EthersAdapter({
       ethers,
       signerOrProvider: this.signer
     })
+  }
+
+  async connect(safeAddress: string) {
+    if (!this.ethAdapter) {
+      await this.connectWallet()
+    }
+
+    this.safeAddress = safeAddress
 
     // Initialize Protocol Kit
     this.protocolKit = await Safe.create({
-      ethAdapter,
+      ethAdapter: this.ethAdapter!,
       safeAddress
     })
+  }
+
+  async createSafe(owners: string[], threshold: number) {
+    if (!this.ethAdapter) {
+      throw new Error('Wallet not connected. Please connect wallet first.')
+    }
+
+    const safeFactory = await SafeFactory.create({ ethAdapter: this.ethAdapter })
+    
+    const safeAccountConfig: SafeAccountConfig = {
+      owners,
+      threshold,
+    }
+    
+    const safeSdk = await safeFactory.deploySafe({ safeAccountConfig })
+    const newSafeAddress = await safeSdk.getAddress()
+    
+    return newSafeAddress
   }
 
   async createTransaction(txData: SafeTransactionDataPartial) {
@@ -62,7 +87,6 @@ export class SafeService {
       const signedTx = await this.protocolKit.signTransaction(safeTransaction)
       
       // Get the signature
-      const signerAddress = await this.signer.getAddress()
       const signatures = Array.from(signedTx.signatures.entries()).map(([signer, sig]) => ({
         signer,
         data: sig.data
@@ -100,18 +124,19 @@ export class SafeService {
       })
 
       // Add existing signatures
-      serializedTx.signatures.forEach(sig => {
+      for (const sig of serializedTx.signatures) {
         safeTransaction.addSignature({
           signer: sig.signer,
-          data: sig.data
+          data: sig.data,
+          staticPart: () => sig.data.slice(0, 130),
+          dynamicPart: () => sig.data.slice(130)
         })
-      })
+      }
 
       // Sign the transaction
       const signedTx = await this.protocolKit.signTransaction(safeTransaction)
       
-      // Get the new signature
-      const signerAddress = await this.signer.getAddress()
+      // Get all signatures including the new one
       const signatures = Array.from(signedTx.signatures.entries()).map(([signer, sig]) => ({
         signer,
         data: sig.data
@@ -144,12 +169,14 @@ export class SafeService {
       })
 
       // Add all collected signatures
-      serializedTx.signatures.forEach(sig => {
+      for (const sig of serializedTx.signatures) {
         safeTransaction.addSignature({
           signer: sig.signer,
-          data: sig.data
+          data: sig.data,
+          staticPart: () => sig.data.slice(0, 130),
+          dynamicPart: () => sig.data.slice(130)
         })
-      })
+      }
       
       // Execute transaction
       const response = await this.protocolKit.executeTransaction(safeTransaction)
