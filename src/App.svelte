@@ -116,6 +116,10 @@
         throw new Error('Please enter a Safe address')
       }
       
+      if (!ethers.utils.isAddress(safeAddress)) {
+        throw new Error('Invalid Safe address')
+      }
+
       await safeService.connect(safeAddress)
       connectedAddress = await safeService.getAddress()
       status = 'Connected successfully'
@@ -144,7 +148,8 @@
       const txData = {
         to: recipientAddress,
         value: weiValue,
-        data: transactionPayload.startsWith('0x') ? transactionPayload : '0x' + transactionPayload
+        data: transactionPayload.startsWith('0x') ? transactionPayload : '0x' + transactionPayload,
+        nonce: undefined // Let the Safe Protocol Kit handle nonce calculation
       }
       
       const result = await safeService.createTransaction(txData)
@@ -219,6 +224,12 @@
   function isCurrentSigner(signerAddress: string): boolean {
     return connectedAddress.toLowerCase() === signerAddress.toLowerCase()
   }
+
+  function handleSafeCreated(event: CustomEvent<{ safeAddress: string }>) {
+    safeAddress = event.detail.safeAddress
+    handleConnect() // Auto-connect to the newly created Safe
+    activeWorkflow = 'create' // Switch to transaction creation tab
+  }
 </script>
 
 <main>
@@ -247,12 +258,8 @@
 
   {#if activeWorkflow === 'new'}
     <CreateSafe 
-      {safeService} 
-      on:safecreated={(e) => {
-        safeAddress = e.detail.safeAddress
-        activeWorkflow = 'create'
-        handleConnect()
-      }}
+      {safeService}
+      on:safecreated={handleSafeCreated}
     />
   {:else}
     <div class="guide-steps">

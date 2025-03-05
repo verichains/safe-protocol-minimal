@@ -1,6 +1,7 @@
 import { ethers } from 'ethers'
-import Safe, { EthersAdapter, type SafeAccountConfig, SafeFactory } from '@safe-global/protocol-kit'
-import type { SafeTransactionDataPartial } from '@safe-global/safe-core-sdk-types'
+import Safe, { type SafeAccountConfig } from '@safe-global/protocol-kit'
+import { type SafeTransactionDataPartial } from '@safe-global/types-kit'
+import type { MetaTransactionData } from '@safe-global/types-kit'
 
 export interface SerializedSafeTransaction {
   to: string
@@ -17,7 +18,6 @@ export class SafeService {
   private signer: ethers.Signer
   private protocolKit: Safe
   private safeAddress: string = ''
-  private ethAdapter: EthersAdapter | null = null
 
   constructor() {
     // Initialize empty - will be set in connect()
@@ -36,67 +36,87 @@ export class SafeService {
     // Request account access
     await provider.send("eth_requestAccounts", [])
     this.signer = provider.getSigner()
-
-    // Create EthAdapter
-    this.ethAdapter = new EthersAdapter({
-      ethers,
-      signerOrProvider: this.signer
-    })
   }
 
   async connect(safeAddress: string) {
-    if (!this.ethAdapter) {
+    if (!this.signer.provider) {
       await this.connectWallet()
     }
 
     this.safeAddress = safeAddress
 
-    // Initialize Protocol Kit
-    this.protocolKit = await Safe.create({
-      ethAdapter: this.ethAdapter!,
+    // Initialize Protocol Kit with the new API
+    this.protocolKit = await Safe.init({
+      provider: window.ethereum,
+      signer: await this.signer.getAddress(),
       safeAddress
     })
   }
 
   async createSafe(owners: string[], threshold: number) {
-    if (!this.ethAdapter) {
+    if (!this.signer.provider) {
       throw new Error('Wallet not connected. Please connect wallet first.')
     }
-
-    const safeFactory = await SafeFactory.create({ ethAdapter: this.ethAdapter })
     
     const safeAccountConfig: SafeAccountConfig = {
       owners,
       threshold,
     }
     
-    const safeSdk = await safeFactory.deploySafe({ safeAccountConfig })
-    const newSafeAddress = await safeSdk.getAddress()
+    // Initialize Protocol Kit for deployment
+    const protocolKit = await Safe.init({
+      provider: window.ethereum,
+      signer: await this.signer.getAddress(),
+      predictedSafe: {
+        safeAccountConfig
+      }
+    })
     
+    // Get the predicted address
+    const newSafeAddress = await protocolKit.getAddress()
+    
+    // Deploy the Safe at the predicted address
+    const tx = await protocolKit.createSafeDeploymentTransaction();
+    
+    const txResponse = await this.signer.sendTransaction(tx);
+    console.log(txResponse);
+
+    await txResponse.wait();
+
     return newSafeAddress
   }
 
   async createTransaction(txData: SafeTransactionDataPartial) {
     try {
-      // Create transaction
-      const safeTransaction = await this.protocolKit.createTransaction({
-        safeTransactionData: txData
+      // Create transaction with updated API
+      const transaction: MetaTransactionData = {
+        to: txData.to,
+        value: txData.value || '0',
+        data: txData.data || '0x'
+      }
+
+      const safeTransaction = await this.protocolKit.createTransaction({ 
+        transactions: [transaction]
       })
 
       // Sign transaction
       const signedTx = await this.protocolKit.signTransaction(safeTransaction)
       
       // Get the signature
-      const signatures = Array.from(signedTx.signatures.entries()).map(([signer, sig]) => ({
-        signer,
-        data: sig.data
-      }))
+      const signatures = Array.from(signedTx.signatures.entries())
+        .map((entry) => {
+          const [signer, sig] = entry as [string, { data: string }]
+          return {
+            signer,
+            data: sig.data
+          }
+        })
 
       // Create serializable transaction data
       const serializedTx: SerializedSafeTransaction = {
         to: signedTx.data.to,
         value: signedTx.data.value,
-        data: signedTx.data.data,
+        data: signedTx.data.data || '0x',
         signatures,
         nonce: signedTx.data.nonce
       }
@@ -113,21 +133,23 @@ export class SafeService {
 
   async addSignature(serializedTx: SerializedSafeTransaction) {
     try {
-      // Create a new transaction object
+      // Create a new transaction object with updated API
+      const transaction: MetaTransactionData = {
+        to: serializedTx.to,
+        value: serializedTx.value,
+        data: serializedTx.data
+      }
+
       const safeTransaction = await this.protocolKit.createTransaction({
-        safeTransactionData: {
-          to: serializedTx.to,
-          value: serializedTx.value,
-          data: serializedTx.data,
-          nonce: serializedTx.nonce
-        }
+        transactions: [transaction]
       })
 
-      // Add existing signatures
+      // Add existing signatures with updated signature format
       for (const sig of serializedTx.signatures) {
         safeTransaction.addSignature({
           signer: sig.signer,
           data: sig.data,
+          isContractSignature: false,
           staticPart: () => sig.data.slice(0, 130),
           dynamicPart: () => sig.data.slice(130)
         })
@@ -137,10 +159,14 @@ export class SafeService {
       const signedTx = await this.protocolKit.signTransaction(safeTransaction)
       
       // Get all signatures including the new one
-      const signatures = Array.from(signedTx.signatures.entries()).map(([signer, sig]) => ({
-        signer,
-        data: sig.data
-      }))
+      const signatures = Array.from(signedTx.signatures.entries())
+        .map((entry) => {
+          const [signer, sig] = entry as [string, { data: string }]
+          return {
+            signer,
+            data: sig.data
+          }
+        })
 
       // Return updated serialized transaction
       return {
@@ -158,21 +184,23 @@ export class SafeService {
 
   async executeTransaction(serializedTx: SerializedSafeTransaction) {
     try {
-      // Create a new transaction object
+      // Create a new transaction object with updated API
+      const transaction: MetaTransactionData = {
+        to: serializedTx.to,
+        value: serializedTx.value,
+        data: serializedTx.data
+      }
+
       const safeTransaction = await this.protocolKit.createTransaction({
-        safeTransactionData: {
-          to: serializedTx.to,
-          value: serializedTx.value,
-          data: serializedTx.data,
-          nonce: serializedTx.nonce
-        }
+        transactions: [transaction]
       })
 
-      // Add all collected signatures
+      // Add all collected signatures with updated signature format
       for (const sig of serializedTx.signatures) {
         safeTransaction.addSignature({
           signer: sig.signer,
           data: sig.data,
+          isContractSignature: false,
           staticPart: () => sig.data.slice(0, 130),
           dynamicPart: () => sig.data.slice(130)
         })

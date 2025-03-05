@@ -10,6 +10,8 @@
   let threshold = 1
   let status = ''
   let isError = false
+  let isConnected = false
+  let connectedAddress = ''
 
   function addOwner() {
     owners = [...owners, '']
@@ -28,8 +30,26 @@
     owners = [...owners]
   }
 
+  async function handleConnect() {
+    try {
+      isError = false
+      status = 'Connecting to wallet...'
+      await safeService.connectWallet()
+      connectedAddress = await safeService.getAddress()
+      isConnected = true
+      status = 'Wallet connected successfully!'
+    } catch (error) {
+      isError = true
+      status = error instanceof Error ? error.message : 'Failed to connect wallet'
+    }
+  }
+
   async function handleCreateSafe() {
     try {
+      if (!isConnected) {
+        throw new Error('Please connect your wallet first')
+      }
+
       const validOwners = owners.filter(owner => owner.trim() !== '')
       if (validOwners.length === 0) {
         throw new Error('At least one owner address is required')
@@ -41,9 +61,9 @@
 
       isError = false
       status = 'Creating Safe...'
-      await safeService.createSafe(validOwners, threshold)
-      status = 'Safe created successfully! 🎉'
-      dispatch('safecreated')
+      const safeAddress = await safeService.createSafe(validOwners, threshold)
+      status = `Safe created successfully at ${safeAddress}! 🎉`
+      dispatch('safecreated', { safeAddress })
     } catch (error) {
       isError = true
       status = error instanceof Error ? error.message : 'Failed to create Safe'
@@ -53,6 +73,19 @@
 
 <div class="create-safe-container">
   <h2>Create New Safe</h2>
+  
+  <div class="wallet-connection">
+    {#if !isConnected}
+      <button class="primary-button" on:click={handleConnect}>
+        Connect Wallet
+      </button>
+    {:else}
+      <div class="connected-status">
+        <span class="status-dot"></span>
+        Connected: <code class="address">{connectedAddress}</code>
+      </div>
+    {/if}
+  </div>
   
   <div class="form-group">
     <label for="owners">
@@ -338,5 +371,40 @@
     .icon-button.remove {
       align-self: flex-end;
     }
+  }
+
+  .wallet-connection {
+    margin-bottom: 2rem;
+    padding: 1rem;
+    background: #f5f5f5;
+    border-radius: 6px;
+    border: 1px solid #e0e0e0;
+  }
+
+  .connected-status {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem;
+    background: #fff;
+    border-radius: 4px;
+    font-size: 0.9375rem;
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    background: #4caf50;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  .address {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.875rem;
+    padding: 0.25rem 0.5rem;
+    background: #f5f5f5;
+    border-radius: 4px;
+    color: #2196f3;
   }
 </style> 
